@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Page Extractor</title>
+  <style>
+    body {
+      width: 250px;
+      text-align: center;
+      font-family: Arial, sans-serif;
+      padding: 10px;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      font-size: 14px;
+    }
+    button:disabled {
+      background-color: #eeeeee;
+      color: #666666;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <button id="extractBtn">Extract Page as Markdown</button>
+  <div id="status" style="margin-top: 10px; min-height: 1.2em; font-size: 12px; word-wrap: break-word;"></div>
+  <div style="margin-top: 15px; font-size: 11px;">
+    <a href="#" id="optionsLink" style="color: #666; text-decoration: none;">⚙️ Options</a>
+  </div>
+  <script src="turndown.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

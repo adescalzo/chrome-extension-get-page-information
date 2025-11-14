@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Page Extractor Options</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      max-width: 500px;
+    }
+    .option-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    input[type="text"], input[type="password"], select {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    .model-management {
+      margin-top: 15px;
+      padding: 15px;
+      background-color: #f8f9fa;
+      border-radius: 4px;
+    }
+    .model-input-group {
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+      margin-top: 10px;
+    }
+    .model-input-group input {
+      flex: 1;
+    }
+    .model-input-group button {
+      padding: 8px 15px;
+      font-size: 14px;
+    }
+    .custom-models-list {
+      margin-top: 10px;
+    }
+    .custom-model-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 5px 10px;
+      margin: 5px 0;
+      background-color: white;
+      border: 1px solid #ddd;
+      border-radius: 3px;
+    }
+    .remove-model {
+      background-color: #dc3545;
+      color: white;
+      border: none;
+      padding: 2px 8px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .remove-model:hover {
+      background-color: #c82333;
+    }
+    #status {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 4px;
+      display: none;
+    }
+    #status.success {
+      background-color: #d4edda;
+      color: #155724;
+      display: block;
+    }
+    #status.error {
+      background-color: #f8d7da;
+      color: #721c24;
+      display: block;
+    }
+    .info {
+      font-size: 12px;
+      color: #666;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Page Extractor Options</h1>
+  
+  <div class="option-group">
+    <label for="geminiApiKey">Gemini API Key (Optional)</label>
+    <input type="password" id="geminiApiKey" placeholder="Enter your Gemini API key">
+    <div class="info">
+      Get your API key from <a href="https://makersuite.google.com/app/apikey" target="_blank">Google AI Studio</a>.
+      When enabled, Gemini will:
+      <ul style="margin: 5px 0; padding-left: 20px;">
+        <li>Add a summary of the content</li>
+        <li>Improve markdown formatting quality</li>
+        <li>Analyze and describe images (when available)</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="option-group">
+    <label for="geminiModel">Gemini Model</label>
+    <select id="geminiModel">
+      <option value="gemini-2.5-pro">gemini-2.5-pro (Default)</option>
+      <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+      <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite</option>
+    </select>
+    <div class="info">
+      Select which Gemini model to use for content processing. Pro models provide better quality but may be slower.
+    </div>
+
+    <div class="model-management">
+      <h4 style="margin-top: 0; margin-bottom: 10px;">Custom Models</h4>
+      <p style="margin: 0; font-size: 12px; color: #666;">
+        Add new Gemini models as they become available. Model names should follow the format: gemini-x.x-model-name
+      </p>
+
+      <div class="model-input-group">
+        <div style="flex: 1;">
+          <label for="customModelInput" style="font-size: 12px; margin-bottom: 3px;">Model Name</label>
+          <input type="text" id="customModelInput" placeholder="e.g., gemini-3.0-pro">
+        </div>
+        <button type="button" id="addCustomModel">Add Model</button>
+      </div>
+
+      <div class="custom-models-list" id="customModelsList">
+        <!-- Custom models will be populated here -->
+      </div>
+    </div>
+  </div>
+
+  <div class="option-group">
+    <label>
+      <input type="checkbox" id="useGemini">
+      Use Gemini to improve markdown quality
+    </label>
+  </div>
+
+  <button id="save">Save Options</button>
+  <div id="status"></div>
+
+  <hr style="margin: 30px 0;">
+
+  <div class="option-group">
+    <h2>Extraction History</h2>
+    <p class="info">Manage the list of URLs that have been extracted</p>
+    
+    <div style="margin: 15px 0;">
+      <strong id="urlCount">Loading...</strong>
+    </div>
+    
+    <div style="display: flex; gap: 10px; margin-top: 15px;">
+      <button id="clearHistory" style="background-color: #dc3545;">
+        Clear All History
+      </button>
+      <button id="keepLast100" style="background-color: #ffc107; color: #000;">
+        Keep Last 100 URLs
+      </button>
+      <button id="exportHistory" style="background-color: #17a2b8;">
+        Export History
+      </button>
+    </div>
+    
+    <div id="historyStatus" style="margin-top: 10px; display: none;"></div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

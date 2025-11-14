@@ -1,0 +1,23 @@
+# AI Coding Agent Guide
+- **Project Snapshot** This is a Chrome Manifest V3 extension that converts the active tab into Markdown with optional Gemini enrichment; core scripts live in `popup.js` (UI/control flow) and `background.js` (Gemini + download worker).
+- **Execution Flow** `popup.js` injects `getPageContent` via `chrome.scripting.executeScript`, converts the captured HTML with `TurndownService`, then either downloads immediately or delegates to the background worker for Gemini processing.
+- **Gemini Integration** Background `improveMarkdownWithGemini` calls Google's `generateContent` endpoint and expects the exact `## Metadata` / `## Content` layout so the parser can build structured fields—keep the prompt format and parsing regexes aligned when changing either.
+- **Metadata Generation** Both popup and background own a `createMetadata` helper that wraps YAML front matter in a fenced code block; maintain identical logic (escape rules, array formatting, `date_captured` stamp) in both copies or refactor carefully so they stay in sync.
+- **Download Strategy** Final markdown is turned into a base64 data URL and downloaded through `chrome.downloads.download({saveAs: true})`; continue using `TextEncoder` (not `unescape`) to preserve UTF-8.
+- **Storage Contracts**
+  - Sync storage keys: `geminiApiKey`, `useGemini`, `geminiModel`, `customModels` (see `options.js`).
+  - Local storage key: `extractedUrls` array of `{url, firstExtracted, lastExtracted, count}` objects capped at 100 entries.
+- **History UX** Whenever you touch extraction history helpers (`addExtractedUrl`, `keepLastNUrls`, options history actions), ensure the popup indicator (`checkIfCurrentUrlExtracted`) and options counters stay consistent.
+- **Popup UX** The popup is intentionally minimal (250px wide). Keep status updates flowing through `statusEl`, and remember the button label toggles between "Extract" and "Re-extract" when history reports a prior capture.
+- **Image Handling** `getPageContent` samples up to five >100px images and base64-encodes them for Gemini; avoid expanding this aggressively because the request payload hits API limits quickly.
+- **Domain Rules** Custom extraction selectors live in the `domainRules` map inside `getPageContent`; extend that map for site-specific tweaks before adding heavier heuristics.
+- **Category Detection** `detectCategory` relies on keyword lists against title/URL. Expand carefully—overlapping keywords can shift filenames and front matter.
+- **Filename Convention** `generateFilename` builds `YYYY-MM-DD_<category>_<slug>.md`; changes must preserve slug sanitization and the publication-date fallback logic.
+- **Async Messaging** All long-running Gemini work happens in the background service worker. When adding new runtime message types, make sure `chrome.runtime.onMessage.addListener` returns `true` so the response channel stays open.
+- **Resilience** `generateContentWithBackoff` already handles retries for 503/network errors—reuse it for future Gemini/HTTP calls rather than duplicating retry logic.
+- **Notifications** Successful background downloads fire a `chrome.notifications.create` call; mirror that pattern for new background tasks so the user gets feedback even if the popup is closed.
+- **Options Surface** `options.html/js` drive the Gemini toggle and custom model list. Respect the existing DOM IDs and helper wiring when extending the settings page to avoid breaking restore/save flows.
+- **Manifest Touchpoints** Any new permissions, host access, or files need to be declared in `manifest.json` (`host_permissions` currently whitelists Google Generative Language APIs only).
+- **Third-Party Assets** `turndown.js` is loaded directly in `popup.html`; if you need more libraries, include them via additional `<script>` tags since there is no bundler/build step.
+- **Testing the Extension** Load the folder as an unpacked extension in Chrome, enable the "Use Gemini" option with an API key, then run extraction against real pages to verify metadata parsing, notifications, and download naming.
+- **Code Style** The project uses modern `async/await` with minimal dependencies; keep new code ES2020-compatible, prefer explicit helper functions, and add comments only for non-obvious logic (e.g., API quirks or parsing assumptions).
