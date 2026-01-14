@@ -1,6 +1,9 @@
+// Import polyfill for Chrome compatibility
+importScripts('browser-polyfill.min.js');
+
 // URL History Management Functions (duplicated from popup.js for background access)
 async function getExtractedUrls() {
-  const result = await chrome.storage.local.get("extractedUrls");
+  const result = await browser.storage.local.get("extractedUrls");
   return result.extractedUrls || [];
 }
 
@@ -27,11 +30,11 @@ async function addExtractedUrl(url) {
     urls.splice(maxUrls);
   }
 
-  await chrome.storage.local.set({ extractedUrls: urls });
+  await browser.storage.local.set({ extractedUrls: urls });
 }
 
 // Background script for handling Gemini API calls
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "improveWithGemini") {
     improveMarkdownWithGemini(
       request.markdown,
@@ -547,7 +550,7 @@ async function processAndDownloadWithGemini(request) {
     const dataUrl = `data:text/markdown;charset=utf-8;base64,${base64Content}`;
 
     // Use Chrome downloads API to download the file
-    chrome.downloads.download({
+    browser.downloads.download({
       url: dataUrl,
       filename: filename,
       saveAs: true, // Changed to true to prompt user and remember the last used directory
@@ -557,7 +560,7 @@ async function processAndDownloadWithGemini(request) {
     await addExtractedUrl(url);
 
     // Show notification that download completed
-    chrome.notifications.create({
+    browser.notifications.create({
       type: "basic",
       iconUrl: "icons/icon48.png",
       title: "Page Extraction Complete",
@@ -565,7 +568,7 @@ async function processAndDownloadWithGemini(request) {
     });
 
     // Notify popup if it's still open
-    chrome.runtime
+    browser.runtime
       .sendMessage({
         action: "processingComplete",
         success: true,
@@ -578,7 +581,7 @@ async function processAndDownloadWithGemini(request) {
     console.error("Background processing error:", error);
 
     // Show error notification
-    chrome.notifications.create({
+    browser.notifications.create({
       type: "basic",
       iconUrl: "icons/icon48.png",
       title: "Extraction Failed",
@@ -586,7 +589,7 @@ async function processAndDownloadWithGemini(request) {
     });
 
     // Notify popup if it's still open
-    chrome.runtime
+    browser.runtime
       .sendMessage({
         action: "processingComplete",
         success: false,

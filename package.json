@@ -1,0 +1,24 @@
+{
+  "name": "chrome-extension-get-page-information",
+  "version": "1.0.0",
+  "description": "A Chrome/Firefox extension that converts web page content to Markdown format using turndown.js library.",
+  "main": "build.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/adescalzo/chrome-extension-get-page-information.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/adescalzo/chrome-extension-get-page-information/issues"
+  },
+  "homepage": "https://github.com/adescalzo/chrome-extension-get-page-information#readme",
+  "devDependencies": {
+    "fs-extra": "^11.3.3"
+  }
+}

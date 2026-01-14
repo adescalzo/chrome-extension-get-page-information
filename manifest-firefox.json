@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "Page to Markdown Extractor",
+  "version": "1.0",
+  "description": "Extracts the HTML of the current page into a Markdown file.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "page-to-markdown@adescalzo.dev",
+      "strict_min_version": "109.0"
+    }
+  },
+  "icons": {
+    "48": "icons/icon48.png",
+    "64": "icons/icon64.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "48": "icons/icon48.png",
+      "64": "icons/icon64.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "downloads",
+    "notifications"
+  ],
+  "background": {
+    "scripts": ["browser-polyfill.min.js", "background.js"]
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "host_permissions": [
+    "https://generativelanguage.googleapis.com/*"
+  ]
+}

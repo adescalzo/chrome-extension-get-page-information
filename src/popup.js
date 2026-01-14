@@ -264,7 +264,7 @@ function downloadFile(filename, content) {
   const dataUrl = `data:text/markdown;charset=utf-8;base64,${base64Content}`;
 
   // Use Chrome downloads API with saveAs: true to remember the path
-  chrome.downloads.download({
+  browser.downloads.download({
     url: dataUrl,
     filename: filename,
     saveAs: true, // This prompts the user and remembers the last used directory
@@ -280,7 +280,7 @@ const statusEl = document.getElementById("status");
 
 // Get the list of extracted URLs from storage
 async function getExtractedUrls() {
-  const result = await chrome.storage.local.get("extractedUrls");
+  const result = await browser.storage.local.get("extractedUrls");
   return result.extractedUrls || [];
 }
 
@@ -311,7 +311,7 @@ async function addExtractedUrl(url) {
     urls.splice(maxUrls);
   }
 
-  await chrome.storage.local.set({ extractedUrls: urls });
+  await browser.storage.local.set({ extractedUrls: urls });
 }
 
 // Check if a URL has been extracted before
@@ -322,7 +322,7 @@ async function isUrlExtracted(url) {
 
 // Clear all extracted URLs
 async function clearExtractedUrls() {
-  await chrome.storage.local.set({ extractedUrls: [] });
+  await browser.storage.local.set({ extractedUrls: [] });
 }
 
 // Keep only the last N URLs
@@ -331,7 +331,7 @@ async function keepLastNUrls(n = 100) {
   if (urls.length > n) {
     urls.sort((a, b) => new Date(b.lastExtracted) - new Date(a.lastExtracted));
     urls.splice(n);
-    await chrome.storage.local.set({ extractedUrls: urls });
+    await browser.storage.local.set({ extractedUrls: urls });
   }
 }
 
@@ -373,12 +373,12 @@ turndownService.addRule("enhancedCodeBlock", {
 // Add options link handler
 document.getElementById("optionsLink").addEventListener("click", (e) => {
   e.preventDefault();
-  chrome.runtime.openOptionsPage();
+  browser.runtime.openOptionsPage();
 });
 
 /**
  * Validates if the tab can be processed
- * @param {chrome.tabs.Tab} tab - The tab to validate
+ * @param {browser.tabs.Tab} tab - The tab to validate
  * @throws {Error} if tab is invalid
  */
 function validateTab(tab) {
@@ -515,7 +515,7 @@ async function improveWithGeminiIfEnabled(
   images
 ) {
   const { useGemini, geminiApiKey, geminiModel } =
-    await chrome.storage.sync.get(["useGemini", "geminiApiKey", "geminiModel"]);
+    await browser.storage.sync.get(["useGemini", "geminiApiKey", "geminiModel"]);
 
   if (!useGemini || !geminiApiKey) {
     // Create basic metadata without Gemini enhancement
@@ -526,7 +526,7 @@ async function improveWithGeminiIfEnabled(
   if (statusEl) statusEl.textContent = "Improving with Gemini...";
 
   try {
-    const response = await chrome.runtime.sendMessage({
+    const response = await browser.runtime.sendMessage({
       action: "improveWithGemini",
       markdown: markdown,
       apiKey: geminiApiKey,
@@ -575,7 +575,7 @@ async function improveWithGeminiIfEnabled(
 // Check if current URL has been extracted before
 async function checkIfCurrentUrlExtracted() {
   try {
-    const [tab] = await chrome.tabs.query({
+    const [tab] = await browser.tabs.query({
       active: true,
       currentWindow: true,
     });
@@ -623,14 +623,14 @@ extractBtn.addEventListener("click", async () => {
   if (statusEl) statusEl.textContent = ""; // Clear previous status
 
   try {
-    const [tab] = await chrome.tabs.query({
+    const [tab] = await browser.tabs.query({
       active: true,
       currentWindow: true,
     });
 
     validateTab(tab);
 
-    const results = await chrome.scripting.executeScript({
+    const results = await browser.scripting.executeScript({
       target: { tabId: tab.id },
       func: getPageContent,
     });
@@ -647,7 +647,7 @@ extractBtn.addEventListener("click", async () => {
 
     // Check if using Gemini (which takes longer)
     const { useGemini, geminiApiKey, geminiModel } =
-      await chrome.storage.sync.get([
+      await browser.storage.sync.get([
         "useGemini",
         "geminiApiKey",
         "geminiModel",
@@ -662,7 +662,7 @@ extractBtn.addEventListener("click", async () => {
       }
 
       // Send to background for processing
-      chrome.runtime.sendMessage({
+      browser.runtime.sendMessage({
         action: "processAndDownload",
         pageContent,
         url: tab.url,
@@ -675,7 +675,7 @@ extractBtn.addEventListener("click", async () => {
 
       // Keep button disabled while processing
       // The background script will send a message when done
-      chrome.runtime.onMessage.addListener(function listener(message) {
+      browser.runtime.onMessage.addListener(function listener(message) {
         if (message.action === "processingComplete") {
           extractBtn.disabled = false;
           extractBtn.textContent = "Extract Page as Markdown";
@@ -685,7 +685,7 @@ extractBtn.addEventListener("click", async () => {
               : "Processing failed";
             statusEl.style.color = message.success ? "green" : "red";
           }
-          chrome.runtime.onMessage.removeListener(listener);
+          browser.runtime.onMessage.removeListener(listener);
         }
       });
 

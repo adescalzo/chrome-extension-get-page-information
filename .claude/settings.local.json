@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl:*)",
+      "Bash(node /home/adescalzo/dev/me/chrome-extension-get-page-information/build.js:*)",
+      "Bash(node build.js:*)"
+    ]
+  }
+}

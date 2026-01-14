@@ -5,13 +5,13 @@ const DEFAULT_MODELS = [
   'gemini-2.5-flash-lite'
 ];
 
-// Saves options to chrome.storage
+// Saves options to browser.storage
 function saveOptions() {
   const geminiApiKey = document.getElementById('geminiApiKey').value;
   const useGemini = document.getElementById('useGemini').checked;
   const geminiModel = document.getElementById('geminiModel').value;
 
-  chrome.storage.sync.set({
+  browser.storage.sync.set({
     geminiApiKey: geminiApiKey,
     useGemini: useGemini,
     geminiModel: geminiModel
@@ -27,9 +27,9 @@ function saveOptions() {
   });
 }
 
-// Restores options from chrome.storage
+// Restores options from browser.storage
 function restoreOptions() {
-  chrome.storage.sync.get({
+  browser.storage.sync.get({
     geminiApiKey: '',
     useGemini: false,
     geminiModel: 'gemini-2.5-pro', // Default model
@@ -120,7 +120,7 @@ async function addCustomModel() {
   }
 
   // Get current custom models
-  const result = await chrome.storage.sync.get(['customModels']);
+  const result = await browser.storage.sync.get(['customModels']);
   const customModels = result.customModels || [];
 
   // Check if model already exists (in default or custom)
@@ -133,7 +133,7 @@ async function addCustomModel() {
   customModels.push(modelName);
 
   // Save to storage
-  await chrome.storage.sync.set({ customModels: customModels });
+  await browser.storage.sync.set({ customModels: customModels });
 
   // Update UI
   populateModelDropdown(customModels);
@@ -149,14 +149,14 @@ async function removeCustomModel(event) {
 
   if (confirm(`Are you sure you want to remove the model "${modelName}"?`)) {
     // Get current custom models
-    const result = await chrome.storage.sync.get(['customModels']);
+    const result = await browser.storage.sync.get(['customModels']);
     const customModels = result.customModels || [];
 
     // Remove the model
     const updatedModels = customModels.filter(model => model !== modelName);
 
     // Save to storage
-    await chrome.storage.sync.set({ customModels: updatedModels });
+    await browser.storage.sync.set({ customModels: updatedModels });
 
     // Update UI
     populateModelDropdown(updatedModels);
@@ -196,7 +196,7 @@ function showStatus(message, type) {
 
 // URL History Management Functions
 async function getExtractedUrls() {
-  const result = await chrome.storage.local.get('extractedUrls');
+  const result = await browser.storage.local.get('extractedUrls');
   return result.extractedUrls || [];
 }
 
@@ -208,7 +208,7 @@ async function updateUrlCount() {
 
 async function clearAllHistory() {
   if (confirm('Are you sure you want to clear all extraction history? This cannot be undone.')) {
-    await chrome.storage.local.set({ extractedUrls: [] });
+    await browser.storage.local.set({ extractedUrls: [] });
     updateUrlCount();
     showHistoryStatus('All history cleared!', 'success');
   }
@@ -219,7 +219,7 @@ async function keepLast100() {
   if (urls.length > 100) {
     urls.sort((a, b) => new Date(b.lastExtracted) - new Date(a.lastExtracted));
     urls.splice(100);
-    await chrome.storage.local.set({ extractedUrls: urls });
+    await browser.storage.local.set({ extractedUrls: urls });
     updateUrlCount();
     showHistoryStatus(`Kept last 100 URLs, removed ${urls.length - 100} older entries.`, 'success');
   } else {

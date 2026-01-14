@@ -17,9 +17,9 @@ The objective is to adapt the "Page to Markdown Extractor" Chrome Extension (Man
 | **Async Messaging** | `return true` + `sendResponse` | Returns a `Promise` | `runtime.onMessage` behavior differs for async operations. |
 | **Service Worker** | Native support | Supported (strict) | Firefox is stricter about service worker termination and event handling. |
 
-## 2. Proposal: Unified Source with Build Automation
+## 2. Proposal: Unified Source with webextension-polyfill
 
-To meet the requirement of "separate directories for output, single directory for source," I propose the following architecture.
+To achieve cross-browser compatibility, we'll use Mozilla's official **webextension-polyfill** library. This is the industry-standard approach that wraps Chrome's callback-based APIs to work with Promises in both browsers.
 
 ### 2.1 Project Structure
 We will restructure the project to separate the **Source** (editable code) from the **Distribution** (browser-ready code).
@@ -32,6 +32,7 @@ project-root/
 │   ├── popup.js
 │   ├── options.js
 │   ├── manifest.json        # Base manifest (Chrome)
+│   ├── browser-polyfill.min.js  # [NEW] Polyfill library
 │   └── ... (html, libs)
 ├── dist/                    # [GENERATED] Do not edit files here
 │   ├── chrome/              # Ready to load in Chrome
@@ -42,54 +43,49 @@ project-root/
 
 ### 2.2 Implementation Strategy
 
-#### A. JavaScript Adaptation (The "Universal API")
-Instead of maintaining two JS files, we will modify the existing files in `src/` to detect the environment dynamically.
+#### A. webextension-polyfill Integration
+The polyfill allows you to use the `browser.*` namespace in both Chrome and Firefox with Promise-based APIs.
 
-**Change:** Add a namespace helper at the top of `background.js`, `popup.js`, and `options.js`.
+**Benefits:**
+- Clean, consistent API across browsers
+- Mozilla maintains compatibility layer
+- Handles all browser differences automatically
+- No conditional code needed
+
+#### B. Code Changes Required
+Simply replace all `chrome.*` calls with `browser.*`:
+
 ```javascript
-// Cross-browser API namespace
-// Chrome uses 'chrome', Firefox uses 'browser'
-const api = (typeof browser !== 'undefined') ? browser : chrome;
+// OLD (Chrome-only):
+const result = await chrome.storage.local.get("key");
 
-// Usage (works in both):
-await api.storage.local.get(...);
+// NEW (works in both):
+const result = await browser.storage.local.get("key");
 ```
 
-#### B. Message Listener Abstraction
-We must handle the difference in `onMessage` listeners.
-
-**Change:** Refactor `background.js` to separate the logic from the listener.
+Message listeners become simpler:
 ```javascript
-// Logic function returns a Promise
-function handleMessage(request) {
-  if (request.action === 'improve') return improveWithGemini(...);
-}
-
-// Listener handles the browser difference
-api.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  const responsePromise = handleMessage(request);
-  
-  // Firefox: Return the promise
-  if (typeof browser !== 'undefined') return responsePromise;
-  
-  // Chrome: Use sendResponse and return true
-  responsePromise.then(sendResponse);
-  return true; 
+// Just return a Promise directly - polyfill handles everything
+browser.runtime.onMessage.addListener(async (request, sender) => {
+  if (request.action === 'improveWithGemini') {
+    return await improveMarkdownWithGemini(request.markdown, request.apiKey);
+  }
 });
 ```
 
 #### C. Build Process
-We will use a simple Node.js script (`build.js`) to automate the generation of the extensions.
-
-1.  **Clean**: Remove old `dist/` folder.
-2.  **Copy Shared**: Copy everything from `src/` to `dist/chrome/` and `dist/firefox/`.
-3.  **Configure Chrome**: Keep `src/manifest.json` in `dist/chrome/`.
-4.  **Configure Firefox**: Overwrite `dist/firefox/manifest.json` with `manifest-firefox.json` (which contains the required Gecko ID).
+The build script will:
+1.  **Clean**: Remove old `dist/` folder
+2.  **Copy Shared**: Copy everything from `src/` to `dist/chrome/` and `dist/firefox/`
+3.  **Configure Chrome**: Keep `src/manifest.json` in `dist/chrome/`
+4.  **Configure Firefox**: Replace with `manifest-firefox.json` (includes Gecko ID)
 
 ### 2.3 Benefits
-1.  **Single Source of Truth**: You only edit files in `src/`.
-2.  **No Validation Warnings**: Chrome gets a clean manifest; Firefox gets its required ID.
-3.  **Automated**: Running `node build.js` instantly prepares both versions for release.
+1.  **Industry Standard**: Mozilla's official cross-browser solution
+2.  **Single Source**: You only edit files in `src/`
+3.  **Cleaner Code**: No browser detection, just use `browser.*` everywhere
+4.  **Future-Proof**: Automatically handles new browser API changes
+5.  **Automated Build**: Running `node build.js` prepares both versions
 
 ## 3. Implementation Details
 
@@ -202,159 +198,150 @@ Create a `manifest-firefox.json` file in the project root:
 - **`background.scripts`**: Firefox MV3 uses `scripts` array instead of `service_worker`
 - **`options_ui`**: Firefox uses `options_ui` instead of `options_page` (though both work)
 
-### 3.3 Code Modifications
+### 3.3 webextension-polyfill Setup
 
-#### Current State Assessment
-Your existing code uses `chrome.*` API throughout:
-- `background.js` lines 3, 30, 34
-- `options.js` (likely throughout)
-- `popup.js` (likely throughout)
+#### Step 1: Download the Polyfill
 
-#### Required Changes
+First, download the latest version of webextension-polyfill:
 
-**Step 1:** Add the cross-browser API helper to the top of **each** of these files:
-- `background.js`
-- `popup.js`
-- `options.js`
-
-```javascript
-// Cross-browser API compatibility
-const api = (typeof browser !== 'undefined') ? browser : chrome;
+```bash
+curl -o browser-polyfill.min.js https://unpkg.com/webextension-polyfill@latest/dist/browser-polyfill.min.js
 ```
 
-**Step 2:** Replace all instances of `chrome.` with `api.` in these files:
+This file will be moved to `src/` during project restructuring.
 
-Example for `background.js`:
+#### Step 2: Update HTML Files
+
+Add the polyfill script **before** your other scripts in `popup.html` and `options.html`:
+
+**popup.html:**
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <!-- existing head content -->
+</head>
+<body>
+  <!-- existing body content -->
+
+  <!-- ADD THIS FIRST -->
+  <script src="browser-polyfill.min.js"></script>
+
+  <!-- Then your existing scripts -->
+  <script src="turndown.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
+```
+
+**options.html:**
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <!-- existing head content -->
+</head>
+<body>
+  <!-- existing body content -->
+
+  <!-- ADD THIS FIRST -->
+  <script src="browser-polyfill.min.js"></script>
+
+  <!-- Then your existing script -->
+  <script src="options.js"></script>
+</body>
+</html>
+```
+
+**Note:** `background.js` doesn't need the script tag since it will be imported in the manifest.
+
+#### Step 3: Update Chrome Manifest
+
+In `src/manifest.json`, update the background section to include the polyfill:
+
+```json
+{
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  }
+}
+```
+
+Actually, for service workers with polyfill, use:
+```json
+{
+  "background": {
+    "scripts": ["browser-polyfill.min.js", "background.js"]
+  }
+}
+```
+
+**Note:** Chrome MV3 prefers `service_worker`, but using `scripts` array works in both and is simpler for polyfill integration.
+
+#### Step 4: Replace chrome.* with browser.*
+
+Your existing code uses `chrome.*` API throughout:
+- `background.js` (storage, runtime, downloads, etc.)
+- `options.js` (storage)
+- `popup.js` (tabs, scripting, storage, runtime)
+
+**Global find-replace in all three files:**
+- Find: `chrome.`
+- Replace: `browser.`
+
+**Example changes in background.js:**
 ```javascript
 // OLD:
 const result = await chrome.storage.local.get("extractedUrls");
 await chrome.storage.local.set({ extractedUrls: urls });
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  improveMarkdownWithGemini(...)
+    .then(sendResponse)
+    .catch((error) => sendResponse({ error: error.message }));
+  return true;
+});
 
 // NEW:
-const result = await api.storage.local.get("extractedUrls");
-await api.storage.local.set({ extractedUrls: urls });
-api.runtime.onMessage.addListener((request, sender, sendResponse) => {
-```
-
-**Step 3:** Update the message listener in `background.js` to handle both browsers:
-
-```javascript
-// Cross-browser message handler
-function handleMessage(request) {
+const result = await browser.storage.local.get("extractedUrls");
+await browser.storage.local.set({ extractedUrls: urls });
+browser.runtime.onMessage.addListener(async (request, sender) => {
   if (request.action === "improveWithGemini") {
-    return improveMarkdownWithGemini(
-      request.markdown,
-      request.apiKey,
-      request.images,
-      request.model
-    );
-  } else if (request.action === "processAndDownload") {
-    return processAndDownloadWithGemini(request);
+    try {
+      const result = await improveMarkdownWithGemini(...);
+      return result;
+    } catch (error) {
+      return { error: error.message };
+    }
   }
-  return Promise.reject(new Error("Unknown action"));
-}
-
-// Listener that works in both browsers
-api.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  const responsePromise = handleMessage(request)
-    .then(result => ({ ...result, success: true }))
-    .catch(error => ({ error: error.message }));
-
-  // Firefox: Return the promise directly
-  if (typeof browser !== 'undefined') {
-    return responsePromise;
-  }
-
-  // Chrome: Use sendResponse callback
-  responsePromise.then(sendResponse);
-  return true; // Keep channel open for async response
 });
 ```
 
+The polyfill makes the code **cleaner** - no need for `return true` or complex `sendResponse` logic.
+
 ### 3.4 Migration Checklist
 
+- [ ] Download `browser-polyfill.min.js`
 - [ ] Create `src/` directory and move all current files into it
+- [ ] Move `browser-polyfill.min.js` to `src/`
+- [ ] Update `src/popup.html` to include polyfill script
+- [ ] Update `src/options.html` to include polyfill script
+- [ ] Update `src/manifest.json` background section
 - [ ] Create `manifest-firefox.json` in project root
 - [ ] Create `build.js` in project root
 - [ ] Install fs-extra: `npm install --save-dev fs-extra`
-- [ ] Add cross-browser API helper to `background.js`, `popup.js`, `options.js`
-- [ ] Replace all `chrome.` with `api.` in those three files
-- [ ] Refactor `background.js` message listener for cross-browser support
+- [ ] Replace all `chrome.` with `browser.` in `background.js`
+- [ ] Replace all `chrome.` with `browser.` in `popup.js`
+- [ ] Replace all `chrome.` with `browser.` in `options.js`
+- [ ] Simplify message listeners to return Promises directly
 - [ ] Add `dist/` to `.gitignore`
 - [ ] Run `node build.js` to generate both distributions
 - [ ] Test Chrome version from `dist/chrome/`
 - [ ] Test Firefox version from `dist/firefox/`
 
-## 4. Alternative Approach: Using webextension-polyfill
+## 4. Testing & Validation
 
-The manual approach above works, but Mozilla provides an **official polyfill** that handles all browser API differences automatically.
-
-### 4.1 What is webextension-polyfill?
-
-[webextension-polyfill](https://github.com/mozilla/webextension-polyfill) is Mozilla's official library that:
-- Wraps all `chrome.*` APIs to return Promises (matching Firefox's `browser.*` behavior)
-- Works in both Chrome and Firefox
-- Eliminates the need for manual `typeof browser` checks
-- Provides TypeScript definitions
-
-### 4.2 Implementation with Polyfill
-
-**Step 1:** Download the polyfill
-```bash
-curl -o src/browser-polyfill.min.js https://unpkg.com/webextension-polyfill@latest/dist/browser-polyfill.min.js
-```
-
-**Step 2:** Add it to your manifest (in `src/manifest.json`):
-```json
-{
-  "background": {
-    "service_worker": "background.js"
-  },
-  "content_scripts": [{
-    "matches": ["<all_urls>"],
-    "js": ["browser-polyfill.min.js"]
-  }]
-}
-```
-
-**For popup and options pages**, add to the HTML:
-```html
-<script src="browser-polyfill.min.js"></script>
-<script src="popup.js"></script>
-```
-
-**Step 3:** Replace all `chrome.` with `browser.` in your code:
-```javascript
-// Now works in both browsers!
-const result = await browser.storage.local.get("extractedUrls");
-await browser.storage.local.set({ extractedUrls: urls });
-
-browser.runtime.onMessage.addListener(async (request, sender) => {
-  if (request.action === "improveWithGemini") {
-    return await improveMarkdownWithGemini(request.markdown, request.apiKey);
-  }
-  // Return promise directly - polyfill handles the rest!
-});
-```
-
-### 4.3 Comparison: Manual vs Polyfill
-
-| Aspect | Manual Approach | webextension-polyfill |
-| :--- | :--- | :--- |
-| **Setup Complexity** | Low (just add helper code) | Low (download one file) |
-| **Code Changes** | `chrome.` → `api.` + listener logic | `chrome.` → `browser.` |
-| **Bundle Size** | ~0 KB (just your code) | ~30 KB (minified polyfill) |
-| **Maintenance** | You maintain compatibility layer | Mozilla maintains polyfill |
-| **TypeScript** | Manual types needed | Official types available |
-| **Edge Cases** | You must handle each API difference | Polyfill handles automatically |
-| **Recommended For** | Small extensions, learning | Production extensions |
-
-**Recommendation:** For this extension, the **manual approach** is sufficient since you only have three JS files with straightforward API usage. Use the polyfill if the extension grows significantly or if you want official Mozilla support.
-
-## 5. Testing & Validation
-
-### 5.1 Manual Testing Procedure
+### 4.1 Manual Testing Procedure
 
 #### Chrome Testing
 1. Build the extension: `node build.js`
@@ -381,7 +368,7 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
    - [ ] Test with strict content security policy
    - [ ] Verify downloads trigger "Save As" dialog
 
-### 5.2 Debugging Tips
+### 4.2 Debugging Tips
 
 **Chrome DevTools:**
 - Background script: `chrome://extensions/` → "Inspect views: service worker"
@@ -397,22 +384,26 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
 
 | Issue | Chrome | Firefox | Solution |
 | :--- | :--- | :--- | :--- |
-| `browser is not defined` | ✅ Works | ❌ Error | Add `const api = typeof browser !== 'undefined' ? browser : chrome;` |
-| Promise not returned from listener | ✅ Works | ❌ Warning | Ensure listener returns Promise in Firefox |
+| `browser is not defined` | ❌ Error | ✅ Native | Ensure polyfill is loaded first in HTML and manifest |
+| Promise not returned from listener | ✅ Works | ✅ Works | Polyfill handles both - just return Promise |
 | Service worker inactive | ⚠️ Normal | ⚠️ Strict | Firefox terminates workers aggressively; ensure no persistent state |
 | Storage not persisting | Check quota | Check quota | Verify `storage` permission in manifest |
 
-### 5.3 Automated Testing (Future Enhancement)
+### 4.3 Automated Testing (Future Enhancement)
 
 Consider adding automated tests for critical functionality:
 
 ```javascript
 // Example: test/api-compatibility.test.js
-describe('Cross-browser API', () => {
-  it('should use correct namespace', () => {
-    const api = (typeof browser !== 'undefined') ? browser : chrome;
-    expect(api).toBeDefined();
-    expect(api.storage).toBeDefined();
+describe('Cross-browser API with polyfill', () => {
+  it('should have browser namespace available', () => {
+    expect(browser).toBeDefined();
+    expect(browser.storage).toBeDefined();
+  });
+
+  it('should support Promise-based APIs', async () => {
+    const result = await browser.storage.local.get('test');
+    expect(result).toBeDefined();
   });
 });
 ```
@@ -422,9 +413,9 @@ describe('Cross-browser API', () => {
 - [Selenium WebDriver](https://www.selenium.dev/) - Browser automation for E2E tests
 - [Chrome Extension Testing Library](https://github.com/extend-chrome/testing-library)
 
-## 6. Deployment & Distribution
+## 5. Deployment & Distribution
 
-### 6.1 Chrome Web Store Submission
+### 5.1 Chrome Web Store Submission
 
 **Requirements:**
 - Developer account ($5 one-time fee)
@@ -444,7 +435,7 @@ describe('Cross-browser API', () => {
 
 **Important:** Chrome manifest must NOT contain `browser_specific_settings` (our build script handles this).
 
-### 6.2 Firefox Add-ons (AMO) Submission
+### 5.2 Firefox Add-ons (AMO) Submission
 
 **Requirements:**
 - Firefox account (free)
@@ -468,7 +459,7 @@ describe('Cross-browser API', () => {
 
 **Note:** Firefox requires the `browser_specific_settings.gecko.id` field, which our Firefox manifest includes.
 
-### 6.3 Version Management Strategy
+### 5.3 Version Management Strategy
 
 Use semantic versioning in both manifests:
 
@@ -498,7 +489,7 @@ Use semantic versioning in both manifests:
 
 Then run: `npm version patch` (auto-bumps version, builds, and packages).
 
-### 6.4 Post-Release Monitoring
+### 5.4 Post-Release Monitoring
 
 **Chrome:**
 - Monitor [Developer Dashboard](https://chrome.google.com/webstore/devconsole/) for:
@@ -512,37 +503,37 @@ Then run: `npm version patch` (auto-bumps version, builds, and packages).
   - User reviews
   - Compatibility reports across Firefox versions
 
-## 7. Troubleshooting & Known Issues
+## 6. Troubleshooting & Known Issues
 
-### 7.1 Common Migration Issues
+### 6.1 Common Migration Issues
 
-**Issue 1: `Uncaught ReferenceError: browser is not defined` (Chrome)**
+**Issue 1: `Uncaught ReferenceError: browser is not defined`**
 
-**Cause:** Using `browser.*` API in Chrome without polyfill.
+**Cause:** Polyfill not loaded before your extension code runs.
 
-**Solution:** Use the cross-browser helper:
-```javascript
-const api = (typeof browser !== 'undefined') ? browser : chrome;
-```
+**Solution:** Ensure `browser-polyfill.min.js` is loaded first:
+- In HTML files: `<script src="browser-polyfill.min.js"></script>` must come **before** your scripts
+- In manifest: `"scripts": ["browser-polyfill.min.js", "background.js"]` - polyfill must be first
 
 ---
 
 **Issue 2: `Error: Could not establish connection. Receiving end does not exist.`**
 
-**Cause:** Message listener not returning `true` or Promise.
+**Cause:** Message listener not returning a Promise.
 
-**Solution (Chrome):**
-```javascript
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  asyncFunction().then(sendResponse);
-  return true; // CRITICAL: Keep channel open
-});
-```
-
-**Solution (Firefox):**
+**Solution (with polyfill):**
 ```javascript
 browser.runtime.onMessage.addListener(async (request, sender) => {
-  return await asyncFunction(); // Return Promise directly
+  // Return Promise directly - polyfill handles both browsers
+  return await asyncFunction();
+
+  // Or handle errors explicitly
+  try {
+    const result = await asyncFunction();
+    return result;
+  } catch (error) {
+    return { error: error.message };
+  }
 });
 ```
 
@@ -553,7 +544,7 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
 **Cause:** Normal browser behavior; service workers are designed to terminate.
 
 **Solution:** Don't store state in global variables. Always use:
-- `chrome.storage.local` for persistent data
+- `browser.storage.local` for persistent data
 - Message passing for communication
 - Event listeners that re-initialize quickly
 
@@ -581,7 +572,7 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
 
 ---
 
-### 7.2 Browser-Specific Quirks
+### 6.2 Browser-Specific Quirks
 
 | Quirk | Impact | Workaround |
 | :--- | :--- | :--- |
@@ -590,7 +581,7 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
 | **Firefox:** MV3 background uses persistent script | Different lifecycle than Chrome | Code works in both but behaves differently |
 | **Chrome:** Promises on `chrome.*` newer feature | Older Chrome needs callbacks | Use `return true` + `sendResponse` pattern |
 
-### 7.3 Getting Help
+### 6.3 Getting Help
 
 **Official Documentation:**
 - Chrome: [developer.chrome.com/docs/extensions](https://developer.chrome.com/docs/extensions/mv3/)
@@ -607,50 +598,60 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
 
 ---
 
-## 8. Summary & Next Steps
+## 7. Summary & Next Steps
 
-This document provides two paths for Firefox adaptation:
+This document provides a standard, industry-recommended approach for Firefox adaptation using **webextension-polyfill**.
 
-### Path A: Manual Approach (Recommended for this project)
-1. ✅ Minimal code changes
-2. ✅ No external dependencies
-3. ✅ Full control over compatibility layer
-4. ⚠️ Requires testing each API difference
+### Why webextension-polyfill?
+1. ✅ Mozilla's official cross-browser solution
+2. ✅ Industry standard for web extensions
+3. ✅ Handles all browser API differences automatically
+4. ✅ Promise-based APIs work consistently in both browsers
+5. ✅ Mozilla maintains compatibility layer
+6. ✅ Cleaner code without browser detection
 
-### Path B: webextension-polyfill
-1. ✅ Official Mozilla solution
-2. ✅ Handles all API differences automatically
-3. ⚠️ Adds 30KB to bundle
-4. ⚠️ Requires updating all API calls
+### Implementation Overview
+
+The migration involves:
+- Using Mozilla's webextension-polyfill library
+- Replacing `chrome.*` with `browser.*` throughout your code
+- Simplifying async message handlers (no more `return true` workarounds)
+- Building separate distributions for Chrome and Firefox with appropriate manifests
 
 ### Immediate Next Steps
 
-**Phase 1: Project Restructuring**
-1. Create `src/` directory
-2. Move all files to `src/`
-3. Create `manifest-firefox.json`
-4. Create `build.js`
-5. Update `.gitignore` to exclude `dist/`
+**Phase 1: Setup & Project Restructuring**
+1. Download `browser-polyfill.min.js`
+2. Create `src/` directory
+3. Move all files to `src/`
+4. Move polyfill to `src/`
+5. Create `manifest-firefox.json`
+6. Create `build.js`
+7. Install fs-extra: `npm install --save-dev fs-extra`
+8. Update `.gitignore` to exclude `dist/`
 
 **Phase 2: Code Adaptation**
-1. Add cross-browser API helper to `background.js`, `popup.js`, `options.js`
-2. Replace `chrome.` with `api.` in those files
-3. Refactor message listeners in `background.js`
+1. Update `popup.html` to include polyfill script
+2. Update `options.html` to include polyfill script
+3. Update `src/manifest.json` background section
+4. Replace all `chrome.` with `browser.` in `background.js`
+5. Replace all `chrome.` with `browser.` in `popup.js`
+6. Replace all `chrome.` with `browser.` in `options.js`
+7. Simplify message listeners to return Promises directly
 
 **Phase 3: Testing**
 1. Build both versions: `node build.js`
 2. Test in Chrome from `dist/chrome/`
 3. Test in Firefox from `dist/firefox/`
 4. Verify all features work in both browsers
+5. Check console for any polyfill warnings
 
-**Phase 4: Distribution**
-1. Create store listings
-2. Prepare screenshots and descriptions
-3. Submit to Chrome Web Store
-4. Submit to Firefox Add-ons (AMO)
+**Phase 4: Distribution (Optional - for personal use)**
+1. Use locally in both browsers via developer mode
+2. Or submit to Chrome Web Store and Firefox Add-ons (AMO)
 
 ---
 
-**Document Version:** 2.0
+**Document Version:** 2.1 (webextension-polyfill standard approach)
 **Last Updated:** 2026-01-10
 **Author:** Claude (based on project analysis)
